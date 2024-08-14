@@ -45,6 +45,7 @@ func main() {
 		slog.Error("failed to create database: %v", "err", err)
 		os.Exit(1)
 	}
+
 	defer func() {
 		slog.Info("closing database")
 		if err := db.Close(); err != nil {
@@ -53,7 +54,11 @@ func main() {
 	}()
 
 	ctx := createExitContext()
-	indexers := createIndexers(ctx, thor, db)
+	indexers, err := createIndexers(ctx, thor, db)
+	if err != nil {
+		slog.Error("failed to create indexers: %v", "err", err)
+		os.Exit(1)
+	}
 
 	var wg sync.WaitGroup
 	for _, indexr := range indexers {
@@ -81,17 +86,23 @@ func createExitContext() context.Context {
 	return ctx
 }
 
-func createIndexers(ctx context.Context, thor *thorgo.Thor, db *sql.DB) []indexer.Indexer {
+func createIndexers(ctx context.Context, thor *thorgo.Thor, db *sql.DB) ([]indexer.Indexer, error) {
 	indexers := make([]indexer.Indexer, 0)
-
-	if true {
-		b3trTransfer, err := indexer.NewB3trTransfer(ctx, thor, db)
-		if err != nil {
-			slog.Error("failed to create b3tr transfer indexer: %v", "err", err)
-			os.Exit(1)
-		}
-		indexers = append(indexers, b3trTransfer)
+	indexerFuncs := []indexer.Func{
+		indexer.Vot3Approval,
+		indexer.AllocationVoting,
+		indexer.Vot3Transfer,
+		indexer.B3trTransfer,
+		indexer.B3trApproval,
 	}
 
-	return indexers
+	for _, f := range indexerFuncs {
+		indexr, err := f(ctx, thor, db)
+		if err != nil {
+			return nil, err
+		}
+		indexers = append(indexers, indexr)
+	}
+
+	return indexers, nil
 }
