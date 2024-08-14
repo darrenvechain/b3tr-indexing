@@ -1,6 +1,4 @@
-package abis
-
-const Emissions = `[
+[
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -1317,4 +1315,4 @@ const Emissions = `[
     "stateMutability": "view",
     "type": "function"
   }
-]`
+]

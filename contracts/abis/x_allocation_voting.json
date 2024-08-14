@@ -1,6 +1,4 @@
-package abis
-
-const AllocationVoting = `[
+[
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -1744,4 +1742,3 @@ const AllocationVoting = `[
     "type": "function"
   }
 ]
-`

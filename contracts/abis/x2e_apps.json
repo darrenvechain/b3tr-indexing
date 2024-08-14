@@ -1,6 +1,4 @@
-package abis
-
-const X2eApps = `[
+[
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -1545,4 +1543,3 @@ const X2eApps = `[
     "type": "function"
   }
 ]
-`

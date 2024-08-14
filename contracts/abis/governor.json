@@ -1,6 +1,4 @@
-package abis
-
-const Governor = `[
+[
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -2340,4 +2338,4 @@ const Governor = `[
     "stateMutability": "payable",
     "type": "receive"
   }
-]`
+]
