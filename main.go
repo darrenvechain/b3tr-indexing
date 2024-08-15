@@ -20,7 +20,6 @@ func init() {
 	w := os.Stderr
 	slog.SetDefault(slog.New(
 		tint.NewHandler(w, &tint.Options{
-			AddSource:  true,
 			Level:      slog.LevelDebug,
 			TimeFormat: time.TimeOnly,
 		}),

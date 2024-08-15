@@ -4,13 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"github.com/darrenvechain/b3tr-indexing/contracts"
+	"github.com/darrenvechain/thor-go-sdk/client"
 	"github.com/darrenvechain/thor-go-sdk/thorgo"
-	"github.com/darrenvechain/thor-go-sdk/thorgo/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 )
 
 func Vot3Approval(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventIndexer, error) {
+	vot3 := thor.Account(contracts.Vot3Address).Contract(contracts.Vot3ABI)
+	criteria, err := vot3.EventCriteria("Approval")
+	if err != nil {
+		return nil, err
+	}
+
 	createTableSQL := `
 		CREATE TABLE IF NOT EXISTS vot3_approvals (
 			id SERIAL PRIMARY KEY,
@@ -24,7 +30,12 @@ func Vot3Approval(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		);
 	`
 
-	processLogs := func(events []accounts.Event) error {
+	processLogs := func(events []client.EventLog) error {
+		decoded, err := vot3.DecodeEvents(events)
+		if err != nil {
+			return err
+		}
+
 		tx, err := db.Begin()
 		if err != nil {
 			return err
@@ -40,7 +51,7 @@ func Vot3Approval(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		}
 		defer stmt.Close()
 
-		for _, ev := range events {
+		for _, ev := range decoded {
 			owner := ev.Args["owner"].(common.Address)
 			spender := ev.Args["spender"].(common.Address)
 			value := ev.Args["value"].(*big.Int)
@@ -66,9 +77,7 @@ func Vot3Approval(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		ctx,
 		thor,
 		db,
-		contracts.Vot3Address,
-		contracts.Vot3ABI,
-		"Approval",
+		[]client.EventCriteria{criteria},
 		25000,
 		"vot3_approvals",
 		createTableSQL,
@@ -77,6 +86,12 @@ func Vot3Approval(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 }
 
 func Vot3Transfer(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventIndexer, error) {
+	vot3 := thor.Account(contracts.Vot3Address).Contract(contracts.Vot3ABI)
+	criteria, err := vot3.EventCriteria("Transfer")
+	if err != nil {
+		return nil, err
+	}
+
 	createTableSQL := `
 		CREATE TABLE IF NOT EXISTS vot3_transfers (
 			id SERIAL PRIMARY KEY,
@@ -90,7 +105,12 @@ func Vot3Transfer(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		);
 	`
 
-	processLogs := func(events []accounts.Event) error {
+	processLogs := func(events []client.EventLog) error {
+		decoded, err := vot3.DecodeEvents(events)
+		if err != nil {
+			return err
+		}
+
 		tx, err := db.Begin()
 		if err != nil {
 			return err
@@ -106,7 +126,7 @@ func Vot3Transfer(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		}
 		defer stmt.Close()
 
-		for _, ev := range events {
+		for _, ev := range decoded {
 			from := ev.Args["from"].(common.Address)
 			to := ev.Args["to"].(common.Address)
 			value := ev.Args["value"].(*big.Int)
@@ -132,10 +152,8 @@ func Vot3Transfer(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		ctx,
 		thor,
 		db,
-		contracts.Vot3Address,
-		contracts.Vot3ABI,
-		"Transfer",
-		2500,
+		[]client.EventCriteria{criteria},
+		1000,
 		"vot3_transfers",
 		createTableSQL,
 		processLogs,

@@ -5,21 +5,18 @@ import (
 	"database/sql"
 	"github.com/darrenvechain/thor-go-sdk/client"
 	"github.com/darrenvechain/thor-go-sdk/thorgo"
-	"github.com/darrenvechain/thor-go-sdk/thorgo/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"log/slog"
 	"time"
 )
 
-const (
-	limit = 256
+var (
+	limit = 1000
 )
 
 type EventIndexer struct {
 	thor        *thorgo.Thor
 	db          *sql.DB
-	contract    *accounts.Contract
 	criteria    []client.EventCriteria
 	eventChan   chan []client.EventLog
 	blockChan   chan *client.ExpandedBlock
@@ -27,8 +24,7 @@ type EventIndexer struct {
 	queryRange  uint64
 	status      int
 	current     uint64
-	eventName   string
-	processLogs func(events []accounts.Event) error
+	processLogs func(events []client.EventLog) error
 	logger      *slog.Logger
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -38,20 +34,12 @@ func NewEventIndexer(
 	ctx context.Context,
 	thor *thorgo.Thor,
 	db *sql.DB,
-	contractAddress common.Address,
-	contractABI abi.ABI,
-	eventName string,
+	criteria []client.EventCriteria,
 	queryRange uint64,
 	tableName string,
 	createTableSQL string,
-	processLogs func(events []accounts.Event) error,
+	processLogs func(events []client.EventLog) error,
 ) (*EventIndexer, error) {
-	contract := thor.Account(contractAddress).Contract(contractABI)
-	criteria, err := contract.EventCriteria(eventName)
-	if err != nil {
-		return nil, err
-	}
-
 	if err := createTable(db, createTableSQL); err != nil {
 		return nil, err
 	}
@@ -66,14 +54,12 @@ func NewEventIndexer(
 	indexer := &EventIndexer{
 		thor:        thor,
 		db:          db,
-		contract:    contract,
-		criteria:    []client.EventCriteria{criteria},
+		criteria:    criteria,
 		eventChan:   make(chan []client.EventLog, 20),
 		blockChan:   blockChan,
 		blocks:      blocks,
 		queryRange:  queryRange,
 		status:      Initialised,
-		eventName:   eventName,
 		processLogs: processLogs,
 		logger:      slog.With("name", tableName),
 		ctx:         ctx,
@@ -195,17 +181,10 @@ func (e *EventIndexer) sendLogs(logs []client.EventLog) {
 	if len(logs) == 0 {
 		return
 	}
-	decoded, err := e.contract.DecodeEvents(logs)
-	if err != nil {
-		e.logger.Error("failed to decode events", "err", err)
+	if err := e.processLogs(logs); err != nil {
+		e.logger.Error("failed to process logs", "err", err)
 		return
 	}
-
-	if err := e.processLogs(decoded); err != nil {
-		e.logger.Error("failed to process log", "err", err)
-		return
-	}
-
 	e.logger.Info("✅  processed logs", "from", logs[0].Meta.BlockNumber, "to", logs[len(logs)-1].Meta.BlockNumber, "amount", len(logs))
 }
 
@@ -213,10 +192,18 @@ func (e *EventIndexer) fetchEvents(start, end uint64) ([]client.EventLog, error)
 	allEvents := make([]client.EventLog, 0)
 	offset := uint64(0)
 	for {
-		events, err := e.thor.Events(e.criteria).
-			Ascending().
-			BlockRange(start, end).
-			Apply(offset, limit)
+		nLimit := uint64(limit)
+		events, err := e.thor.Client().FilterEvents(&client.EventFilter{
+			Range: &client.FilterRange{
+				From: &start,
+				To:   &end,
+			},
+			Criteria: &e.criteria,
+			Options: &client.FilterOptions{
+				Offset: &offset,
+				Limit:  &nLimit,
+			},
+		})
 
 		if err != nil {
 			return nil, err
@@ -228,7 +215,7 @@ func (e *EventIndexer) fetchEvents(start, end uint64) ([]client.EventLog, error)
 			break
 		}
 
-		offset += limit
+		offset += uint64(limit)
 	}
 
 	return allEvents, nil

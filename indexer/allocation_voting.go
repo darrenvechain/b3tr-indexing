@@ -4,13 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"github.com/darrenvechain/b3tr-indexing/contracts"
+	"github.com/darrenvechain/thor-go-sdk/client"
 	"github.com/darrenvechain/thor-go-sdk/thorgo"
-	"github.com/darrenvechain/thor-go-sdk/thorgo/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 )
 
 func AllocationVoting(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventIndexer, error) {
+	xAllocations := thor.Account(contracts.XAllocationVotingAddress).Contract(contracts.XAllocationVotingABI)
+	criteria, err := xAllocations.EventCriteria("AllocationVoteCast")
+	if err != nil {
+		return nil, err
+	}
+
 	createTableSQL := `
 		CREATE TABLE IF NOT EXISTS allocation_votes (
 			id SERIAL PRIMARY KEY,
@@ -25,7 +31,12 @@ func AllocationVoting(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*Even
 		);
 	`
 
-	processLogs := func(events []accounts.Event) error {
+	processLogs := func(events []client.EventLog) error {
+		decoded, err := xAllocations.DecodeEvents(events)
+		if err != nil {
+			return err
+		}
+
 		tx, err := db.Begin()
 		if err != nil {
 			return err
@@ -41,7 +52,7 @@ func AllocationVoting(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*Even
 		}
 		defer stmt.Close()
 
-		for _, ev := range events {
+		for _, ev := range decoded {
 			voter := ev.Args["voter"].(common.Address)
 			roundID := ev.Args["roundId"].(*big.Int)
 			appsIds := ev.Args["appsIds"].([][32]uint8)
@@ -71,9 +82,7 @@ func AllocationVoting(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*Even
 		ctx,
 		thor,
 		db,
-		contracts.XAllocationVotingAddress,
-		contracts.XAllocationVotingABI,
-		"AllocationVoteCast",
+		[]client.EventCriteria{criteria},
 		1000,
 		"allocation_votes",
 		createTableSQL,
