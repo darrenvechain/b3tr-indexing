@@ -25,32 +25,46 @@ func AllocationVoting(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*Even
 		);
 	`
 
-	processLog := func(ev accounts.Event) error {
-		voter := ev.Args["voter"].(common.Address)
-		roundID := ev.Args["roundId"].(*big.Int)
-		appsIds := ev.Args["appsIds"].([][32]uint8)
-		voteWeights := ev.Args["voteWeights"].([]*big.Int)
+	processLogs := func(events []accounts.Event) error {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
 
-		for i, v := range appsIds {
-			_, err := db.Exec(`
+		stmt, err := tx.Prepare(`
 			INSERT INTO allocation_votes ("voter", "round_id", "apps_ids", "vote_weights", block_number, block_id, tx_id, clause_index)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
-				voter.Bytes(),
-				roundID.Bytes(),
-				common.Bytes2Hex(v[:]),
-				voteWeights[i].Text(16),
-				ev.Log.Meta.BlockNumber,
-				ev.Log.Meta.BlockID.Bytes(),
-				ev.Log.Meta.TxID.Bytes(),
-				ev.Log.Meta.ClauseIndex,
-			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
 
-			if err != nil {
-				return err
+		for _, ev := range events {
+			voter := ev.Args["voter"].(common.Address)
+			roundID := ev.Args["roundId"].(*big.Int)
+			appsIds := ev.Args["appsIds"].([][32]uint8)
+			voteWeights := ev.Args["voteWeights"].([]*big.Int)
+
+			for i, v := range appsIds {
+				_, err := stmt.Exec(
+					voter.Bytes(),
+					roundID.Bytes(),
+					common.Bytes2Hex(v[:]),
+					voteWeights[i].Text(16),
+					ev.Log.Meta.BlockNumber,
+					ev.Log.Meta.BlockID.Bytes(),
+					ev.Log.Meta.TxID.Bytes(),
+					ev.Log.Meta.ClauseIndex,
+				)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
-		return nil
+		return tx.Commit()
 	}
 
 	return NewEventIndexer(
@@ -63,6 +77,6 @@ func AllocationVoting(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*Even
 		1000,
 		"allocation_votes",
 		createTableSQL,
-		processLog,
+		processLogs,
 	)
 }

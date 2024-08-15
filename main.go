@@ -65,7 +65,10 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			indexr.Start()
+			err := indexr.Start()
+			if err != nil {
+				slog.Error("indexer failed to start", "err", err)
+			}
 		}()
 	}
 

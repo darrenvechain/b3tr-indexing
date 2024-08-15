@@ -24,23 +24,42 @@ func Vot3Approval(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		);
 	`
 
-	processLog := func(ev accounts.Event) error {
-		owner := ev.Args["owner"].(common.Address)
-		spender := ev.Args["spender"].(common.Address)
-		value := ev.Args["value"].(*big.Int)
+	processLogs := func(events []accounts.Event) error {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
 
-		_, err := db.Exec(`
+		stmt, err := tx.Prepare(`
 			INSERT INTO vot3_approvals ("owner", "spender", value, block_number, block_id, tx_id, clause_index)
-			VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-			owner.Bytes(),
-			spender.Bytes(),
-			value.Text(16),
-			ev.Log.Meta.BlockNumber,
-			ev.Log.Meta.BlockID.Bytes(),
-			ev.Log.Meta.TxID.Bytes(),
-			ev.Log.Meta.ClauseIndex,
-		)
-		return err
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for _, ev := range events {
+			owner := ev.Args["owner"].(common.Address)
+			spender := ev.Args["spender"].(common.Address)
+			value := ev.Args["value"].(*big.Int)
+
+			_, err := stmt.Exec(
+				owner.Bytes(),
+				spender.Bytes(),
+				value.Text(16),
+				ev.Log.Meta.BlockNumber,
+				ev.Log.Meta.BlockID.Bytes(),
+				ev.Log.Meta.TxID.Bytes(),
+				ev.Log.Meta.ClauseIndex,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		return tx.Commit()
 	}
 
 	return NewEventIndexer(
@@ -50,10 +69,10 @@ func Vot3Approval(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		contracts.Vot3Address,
 		contracts.Vot3ABI,
 		"Approval",
-		250,
+		25000,
 		"vot3_approvals",
 		createTableSQL,
-		processLog,
+		processLogs,
 	)
 }
 
@@ -71,23 +90,42 @@ func Vot3Transfer(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		);
 	`
 
-	processLog := func(ev accounts.Event) error {
-		from := ev.Args["from"].(common.Address)
-		to := ev.Args["to"].(common.Address)
-		value := ev.Args["value"].(*big.Int)
+	processLogs := func(events []accounts.Event) error {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
 
-		_, err := db.Exec(`
+		stmt, err := tx.Prepare(`
 			INSERT INTO vot3_transfers ("from", "to", value, block_number, block_id, tx_id, clause_index)
-			VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-			from.Bytes(),
-			to.Bytes(),
-			value.Text(16),
-			ev.Log.Meta.BlockNumber,
-			ev.Log.Meta.BlockID.Bytes(),
-			ev.Log.Meta.TxID.Bytes(),
-			ev.Log.Meta.ClauseIndex,
-		)
-		return err
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for _, ev := range events {
+			from := ev.Args["from"].(common.Address)
+			to := ev.Args["to"].(common.Address)
+			value := ev.Args["value"].(*big.Int)
+
+			_, err := stmt.Exec(
+				from.Bytes(),
+				to.Bytes(),
+				value.Text(16),
+				ev.Log.Meta.BlockNumber,
+				ev.Log.Meta.BlockID.Bytes(),
+				ev.Log.Meta.TxID.Bytes(),
+				ev.Log.Meta.ClauseIndex,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		return tx.Commit()
 	}
 
 	return NewEventIndexer(
@@ -97,9 +135,9 @@ func Vot3Transfer(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventInd
 		contracts.Vot3Address,
 		contracts.Vot3ABI,
 		"Transfer",
-		1000,
+		2500,
 		"vot3_transfers",
 		createTableSQL,
-		processLog,
+		processLogs,
 	)
 }

@@ -7,7 +7,7 @@ import (
 )
 
 type Indexer interface {
-	Start()
+	Start() error
 }
 
 type Func = func(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventIndexer, error)
