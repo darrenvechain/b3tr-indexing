@@ -91,11 +91,11 @@ func createExitContext() context.Context {
 func createIndexers(ctx context.Context, thor *thorgo.Thor, db *sql.DB) ([]indexer.Indexer, error) {
 	indexers := make([]indexer.Indexer, 0)
 	indexerFuncs := []indexer.Func{
-		indexer.Vot3Approval,
-		indexer.AllocationVoting,
-		indexer.Vot3Transfer,
+		//indexer.Vot3Approval,
+		//indexer.AllocationVoting,
+		//indexer.Vot3Transfer,
 		indexer.B3trTransfer,
-		indexer.B3trApproval,
+		//indexer.B3trApproval,
 	}
 
 	for _, f := range indexerFuncs {

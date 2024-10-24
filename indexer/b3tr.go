@@ -11,7 +11,7 @@ import (
 )
 
 func B3trTransfer(ctx context.Context, thor *thorgo.Thor, db *sql.DB) (*EventIndexer, error) {
-	b3tr := thor.Account(contracts.Vot3Address).Contract(contracts.Vot3ABI)
+	b3tr := thor.Account(contracts.B3trAddress).Contract(contracts.B3trABI)
 	criteria, err := b3tr.EventCriteria("Transfer")
 	if err != nil {
 		return nil, err
